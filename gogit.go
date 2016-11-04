@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,16 +10,21 @@ import (
 	"os/user"
 	"strings"
 
-	"encoding/json"
+	"path"
+
+	"net/http"
+
+	"bytes"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli"
-	"gopkg.in/resty.v0"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
-type config struct {
-	token, preferredcontext string
-	colorize                bool
+//Config .gogit config structure
+type Config struct {
+	Token, preferredcontext string
+	Colorize                bool
 }
 
 func getPatPermnissions() []string {
@@ -26,10 +32,10 @@ func getPatPermnissions() []string {
 }
 
 func main() {
-	//	var config config
+	var config Config
 	var verbose bool
 	var context string
-	//preflight(&config)
+	preflight(&config)
 	app := cli.NewApp()
 	app.Name = "gogit"
 	app.Usage = "tbc"
@@ -68,35 +74,101 @@ func main() {
 	app.Run(os.Args)
 }
 
-func preflight(config *config) {
+func preflight(config *Config) {
 	usr, err := user.Current()
 	if err != nil {
 		log.Fatal(err)
 	}
-	file, fileErr := ioutil.ReadFile(usr.HomeDir + "/.gogit")
+	configFilePath := path.Join(usr.HomeDir, ".gogit")
+	_, fileErr := ioutil.ReadFile(configFilePath)
 	if fileErr != nil {
-		handleConfigError(config)
+		handleConfigError(config, configFilePath)
 	}
+	file, _ := ioutil.ReadFile(configFilePath)
 	jsonErr := json.Unmarshal(file, config)
 	if jsonErr != nil {
-		handleConfigError(config)
+		handleConfigError(config, configFilePath)
+	}
+	if config.Token == "" {
+		handleConfigError(config, configFilePath)
 	}
 }
-func handleConfigError(config *config) {
-	if askForConfirmation("Woops! It seems like you don't have a valid .gogit config, want to set one up?") {
-		setup(config)
+func handleConfigError(config *Config, configFilePath string) {
+	if askForConfirmation(fmt.Sprintf("Woops! It seems like you don't have a valid .gogit config at %v, want to set one up?", configFilePath)) {
+		setup(config, configFilePath)
 	} else {
 		fmt.Printf("Can't continue without a proper config file, exiting...")
 		os.Exit(1)
 	}
 }
-func setup(config *config) {
+func setup(config *Config, configFilePath string) {
+
 	pat := createGithubPAT()
-	config.token = pat
+	config.Token = pat
+	json, jsonErr := json.Marshal(&config)
+	if jsonErr != nil {
+		log.Fatalf("Could not marshal config %v to json", &config)
+	}
+	fileErr := ioutil.WriteFile(configFilePath, json, 0666)
+	if fileErr != nil {
+		log.Fatalf("Could not create config file at %v", configFilePath)
+	}
+	config.Colorize = askForConfirmation("would you like colorized output?")
+	fmt.Println("Your .gogit config file is now complete! run `gogit help` to begin using GoGit!")
+	os.Exit(0)
 }
+
+// TokenRequestBody request for token call
+type TokenRequestBody struct {
+	Scopes []string `json:"scopes"`
+	Note   string   `json:"note"`
+}
+
+// TokenResponseBody response from token
+type TokenResponseBody struct {
+	Token string
+}
+
 func createGithubPAT() string {
-	fmt.Println("GoGit needs to create a personal access token to be able to access github's API.")
+
+	reader := bufio.NewReader(os.Stdin)
 	patPermissions := getPatPermnissions()
+	askForPatConfirmation(patPermissions)
+	fmt.Println("To create a PAT gogit will need your github username and password, and a multifactor authentication token if you have it enabled.")
+	fmt.Println("Your password will only be used to create a PAT (over https) and will not be stored anywhere")
+	fmt.Printf("github username: ")
+	username, err := reader.ReadString('\n')
+	password := readPassword()
+	requestBody := TokenRequestBody{
+		Scopes: patPermissions,
+		Note:   "GoGit PAT", //todo: make changeable}
+	}
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		log.Fatal(err)
+	}
+	tokenBody := postToGithub(strings.TrimSpace(username), string(password), "/authorizations", string(body), "")
+	var token TokenResponseBody
+	jsonErr := json.Unmarshal(tokenBody, &token)
+	if jsonErr != nil {
+		log.Fatal(jsonErr)
+	}
+	return token.Token
+}
+func readPassword() string {
+	fd := os.Stdin.Fd()
+	oldState, err := terminal.MakeRaw(int(fd))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("github password: ")
+	password, err := terminal.ReadPassword(int(fd))
+	terminal.Restore(int(fd), oldState)
+	fmt.Println()
+	return string(password)
+}
+func askForPatConfirmation(patPermissions []string) {
+	fmt.Println("GoGit needs to create a personal access token to be able to access github's API.")
 	s := fmt.Sprintf("We will create a PAT with the following permissions: %v. for more info on oauth scopes, visit https://developer.github.com/v3/oauth/#scopes", patPermissions)
 	fmt.Println(s)
 	fmt.Println("The token will be saved in your .gogit config file")
@@ -104,7 +176,6 @@ func createGithubPAT() string {
 		fmt.Println("Cannot continue without correct config")
 		os.Exit(1)
 	}
-	return ""
 }
 func askForConfirmation(s string) bool {
 	reader := bufio.NewReader(os.Stdin)
@@ -124,36 +195,50 @@ func askForConfirmation(s string) bool {
 		}
 	}
 }
-func postToGithub(usr string, pwOrToken string, route string, body string, mfaToken string) string {
-	var respBody string
+func postToGithub(usr string, pwOrToken string, route string, body string, mfaToken string) []byte {
+	var returnMsg []byte
 	baseURL := "https://api.github.com"
-	request := resty.R().
-		SetBody(body).
-		SetResult(&respBody).
-		SetBasicAuth(usr, pwOrToken)
-	if mfaToken != "" {
-		request.SetHeader("X-GitHub-OTP", mfaToken)
-	}
-	resp, err := request.Post(baseURL + route)
+	fullURL := baseURL + route
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", fullURL, bytes.NewBufferString(body))
 	if err != nil {
-		if resp.StatusCode() == 401 {
-
-			opt := resp.Header().Get("X-GitHub-OTP")
-
-			if opt != "" && strings.HasPrefix(opt, "required") { //Handle two-factor auth
-
-				reader := bufio.NewReader(os.Stdin)
-				fmt.Printf("Please enter two-factor authentication token: ")
-				mfa, mfaErr := reader.ReadString('\n')
-
-				if mfaErr != nil {
-					log.Fatal(mfaErr)
-				}
-
-				return postToGithub(usr, pwOrToken, route, body, mfa)
-			}
-			log.Fatal("Unauthorized! Please check your username and password. Or run gogit setup to set up a new public access token")
-		}
+		log.Fatal(err)
 	}
-	return respBody
+	req.SetBasicAuth(usr, pwOrToken)
+	if mfaToken != "" {
+		req.Header.Add("X-GitHub-OTP", mfaToken)
+	}
+	resp, err := client.Do(req)
+	if resp.StatusCode == 401 {
+		opt := resp.Header.Get("X-GitHub-OTP")
+		if opt != "" && strings.HasPrefix(opt, "required") { //Handle two-factor auth
+
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Printf("Please enter two-factor authentication token: ")
+			mfa, mfaErr := reader.ReadString('\n')
+
+			if mfaErr != nil {
+				log.Fatal(mfaErr)
+			}
+			return postToGithub(usr, pwOrToken, route, body, strings.TrimSpace(mfa))
+		}
+		log.Fatal("Unauthorized! Please check your username and password. Or run gogit setup to set up a new public access token")
+	} else if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		respBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		resp.Body.Close()
+		returnMsg = respBody
+	} else {
+		respBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		resp.Body.Close()
+		msg := fmt.Sprintf("status: %v body: %v", resp.StatusCode, string(respBody))
+		fmt.Println(msg)
+		log.Fatal("something something..darkside")
+	}
+	return returnMsg
 }
