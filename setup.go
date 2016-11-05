@@ -40,7 +40,7 @@ func handleConfigError(config *Config, configFilePath string) {
 func setup(config *Config, configFilePath string) {
 	config.Token, config.Username = GetGithubPatAndUsername()
 	fmt.Println("Github PAT successfully created!")
-	config.Colorize = askForConfirmation("would you like colorized output?")
+	config.Colorize = false // askForConfirmation("would you like colorized output?")
 	config.DefaultOrg = AskForDefaultOrg(config.Username, config.Token)
 	config.DefaultTeamID = AskForDefaultTeam(config.Username, config.Token, config.DefaultOrg)
 	config.DefaultContext = AskForDefaultContext()
