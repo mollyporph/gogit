@@ -7,22 +7,24 @@ import (
 	"os"
 )
 
-type githubAuthStatus int
+//GitHubAuthStatus int value of status
+type GitHubAuthStatus int
 
 //Github error statuses
 const (
-	MfaRequired githubAuthStatus = 1 + iota
+	MfaRequired GitHubAuthStatus = 1 + iota
 	WrongPassword
 	NotAuthorized
 )
 
-type githubError struct {
-	msg              string
-	statuscode       int
-	githubAuthStatus githubAuthStatus
+//GitHubError custom error with statuscode and authstatus
+type GitHubError struct {
+	Msg              string
+	StatusCode       int
+	GitHubAuthStatus GitHubAuthStatus
 }
 
-func (e *githubError) Error() string { return e.msg }
+func (e *GitHubError) Error() string { return e.Msg }
 func getPatPermnissions() []string {
 	return []string{"repo", "read:org", "user"}
 }
@@ -57,11 +59,11 @@ func GetGithubPatAndUsername() (string, string) {
 func getGithubPatAndUsername(body string) (string, string) {
 	username := getUsername()
 	password := getPassword()
-	tokenJSON, err := PostToGithub(username, password, "/authorizations", body)
+	tokenJSON, err := PostToGitHub(username, password, "/authorizations", body)
 	if err != nil {
-		if gerr, ok := err.(*githubError); ok {
-			if gerr.statuscode == 401 {
-				if askForConfirmation("Wrong username or password, would you like to try again?") {
+		if gerr, ok := err.(*GitHubError); ok {
+			if gerr.StatusCode == 401 {
+				if askForConfirmation("Wrong username, password or mfa, would you like to try again?") {
 					return getGithubPatAndUsername(body)
 				}
 			}

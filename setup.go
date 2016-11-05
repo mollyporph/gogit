@@ -39,6 +39,11 @@ func handleConfigError(config *Config, configFilePath string) {
 }
 func setup(config *Config, configFilePath string) {
 	config.Token, config.Username = GetGithubPatAndUsername()
+	fmt.Println("Github PAT successfully created!")
+	config.Colorize = askForConfirmation("would you like colorized output?")
+	config.DefaultOrg = AskForDefaultOrg(config.Username, config.Token)
+	config.DefaultTeamID = AskForDefaultTeam(config.Username, config.Token, config.DefaultOrg)
+	config.DefaultContext = AskForDefaultContext()
 	json, jsonErr := json.Marshal(&config)
 	if jsonErr != nil {
 		log.Fatalf("Could not marshal config %v to json", &config)
@@ -47,8 +52,6 @@ func setup(config *Config, configFilePath string) {
 	if fileErr != nil {
 		log.Fatalf("Could not create config file at %v", configFilePath)
 	}
-	config.Colorize = askForConfirmation("would you like colorized output?")
 	fmt.Println("Your .gogit config file is now complete! run `gogit help` to begin using GoGit!")
 	os.Exit(0)
-
 }

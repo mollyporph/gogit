@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -37,14 +38,30 @@ func getMfa() string {
 	}
 	return strings.TrimSpace(mfa)
 }
-func getUsername() string {
+func getString(prompt string) string {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Printf("github username: ")
-	username, err := reader.ReadString('\n')
+	fmt.Printf(prompt)
+	input, err := reader.ReadString('\n')
 	if err != nil {
 		log.Fatal(err)
 	}
-	return strings.TrimSpace(username)
+	return strings.TrimSpace(input)
+}
+func getInt(prompt string) int {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Printf(prompt)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		log.Fatal(err)
+	}
+	number, parseErr := strconv.Atoi(strings.TrimSpace(input))
+	if parseErr != nil {
+		log.Fatal(err)
+	}
+	return number
+}
+func getUsername() string {
+	return getString("github username: ")
 }
 func getPassword() string {
 	fd := os.Stdin.Fd()
