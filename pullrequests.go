@@ -4,18 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
+	"time"
 )
 
 type empty struct{}
 
 //Pullrequest json struct
 type Pullrequest struct {
-	ID        int    `json:"id"`
-	Title     string `json:"title"`
-	URL       string `json:"url"`
-	State     string `json:"state"`
-	CreatedAt string `json:"created_at"` //unmarshaller produces error with empty or nil time.Times
-	ClosedAt  string `json:"closed_at"`
+	ID        int       `json:"id"`
+	Title     string    `json:"title"`
+	URL       string    `json:"url"`
+	State     string    `json:"state"`
+	CreatedAt time.Time `json:"created_at"` //unmarshaller produces error with empty or nil time.Times
+	ClosedAt  string    `json:"closed_at"`
 	Base      struct {
 		Branch string `json:"ref"`
 		Repo   struct {
@@ -34,23 +36,42 @@ type Pullrequest struct {
 }
 
 //PrintPullRequests prints the pull requests that are in `status` status as a table
-func PrintPullRequests(status string) {
-	pullrequests := getPullrequests(status)
+func PrintPullRequests(status string, orderby string) {
+	pullrequests := getPullrequests(status, orderby)
 	PrintTable(
 		[]string{"Repo", "Name", "Requester", "Assignee", "From", "To", "State", "Created"},
 		pullrequestsToTable(pullrequests))
 }
 
-func getPullrequests(status string) []Pullrequest {
+func getPullrequests(status string, orderby string) []Pullrequest {
+	prCreatedAt := func(p1, p2 *Pullrequest) bool {
+		return p1.CreatedAt.Before(p2.CreatedAt)
+	}
+	prState := func(p1, p2 *Pullrequest) bool {
+		return p1.State < p2.State
+	}
+	prRepo := func(p1, p2 *Pullrequest) bool {
+		return p1.Base.Repo.Name < p2.Base.Repo.Name
+	}
+	var result []Pullrequest
 	switch state.Context {
 	case "org":
-		return getOrgPullrequests(status)
+		result = getOrgPullrequests(status)
 	case "team":
-		return getTeamPullrequests(status)
+		result = getTeamPullrequests(status)
 	case "personal":
-		return getPersonalPullrequests(status)
+		result = getPersonalPullrequests(status)
 	}
-	return nil
+	switch orderby {
+	case "created":
+		By(prCreatedAt).Sort(result)
+	case "state":
+		By(prState).Sort(result)
+	case "repo":
+		By(prRepo).Sort(result)
+	default:
+	}
+	return result
 }
 
 func getOrgPullrequests(status string) []Pullrequest {
@@ -128,7 +149,7 @@ func pullrequestsToTable(pullrequests []Pullrequest) [][]string {
 			stringElipse(i.Head.Branch, 15),
 			stringElipse(i.Base.Branch, 15),
 			i.State,
-			i.CreatedAt})
+			i.CreatedAt.Format("2006-01-02 15:04")})
 	}
 	return result
 }
@@ -161,4 +182,39 @@ func Max(x, y int) int {
 		return x
 	}
 	return y
+}
+
+//By sorting by
+type By func(p1, p2 *Pullrequest) bool
+type pullrequestSorter struct {
+	pullrequests []Pullrequest
+	by           func(p1, p2 *Pullrequest) bool
+}
+
+func (s *pullrequestSorter) Len() int {
+	return len(s.pullrequests)
+}
+func (s *pullrequestSorter) Swap(i, j int) {
+	s.pullrequests[i], s.pullrequests[j] = s.pullrequests[j], s.pullrequests[i]
+}
+func (s *pullrequestSorter) Less(i, j int) bool {
+	return s.by(&s.pullrequests[i], &s.pullrequests[j])
+}
+
+//Sort sorts pullrequests
+func (by By) Sort(pullrequests []Pullrequest) {
+	ps := &pullrequestSorter{
+		pullrequests: pullrequests,
+		by:           by,
+	}
+	sort.Sort(ps)
+}
+
+//SortDesc sorts descending
+func (by By) SortDesc(pullrequests []Pullrequest) {
+	ps := &pullrequestSorter{
+		pullrequests: pullrequests,
+		by:           by,
+	}
+	sort.Sort(sort.Reverse(ps))
 }

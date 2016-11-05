@@ -78,10 +78,15 @@ func main() {
 					Value: "open",
 					Usage: "Filters the pullrequests based on `status`. Available options are open,closed,all",
 				},
+				cli.StringFlag{
+					Name:  "orderby, o",
+					Value: "",
+					Usage: "Sorts the pullrequests based on `orderby`. Available options are repo,state,created",
+				},
 			},
 			Action: func(c *cli.Context) error {
 				buildState()
-				PrintPullRequests(c.String("status"))
+				PrintPullRequests(c.String("status"), c.String("orderby"))
 				return nil
 			},
 		},
