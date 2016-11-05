@@ -27,7 +27,7 @@ func getTeamRepos() []string {
 }
 
 func getPersonalRepos() []string {
-	repos, err := getFromGitHub(state.Username, state.Token, "/user/repos")
+	repos, err := getFromGitHub(state.Username, state.Token, "/user/repos?affiliation=owner")
 	if err != nil {
 		log.Fatal(err)
 	}

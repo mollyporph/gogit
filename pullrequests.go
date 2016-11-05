@@ -1,9 +1,12 @@
 package main
 
-import "fmt"
-import "log"
-import "encoding/json"
-import "strconv"
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+)
+
+type empty struct{}
 
 //Pullrequest json struct
 type Pullrequest struct {
@@ -34,9 +37,10 @@ type Pullrequest struct {
 func PrintPullRequests(status string) {
 	pullrequests := getPullrequests(status)
 	PrintTable(
-		[]string{"Repo", "Id", "Title", "Requester", "Assignee", "From", "To", "State", "Created-date"},
+		[]string{"Repo", "Name", "Requester", "Assignee", "From", "To", "State", "Created"},
 		pullrequestsToTable(pullrequests))
 }
+
 func getPullrequests(status string) []Pullrequest {
 	switch state.Context {
 	case "org":
@@ -48,32 +52,60 @@ func getPullrequests(status string) []Pullrequest {
 	}
 	return nil
 }
+
 func getOrgPullrequests(status string) []Pullrequest {
 	repos := getOrgRepos()
 	var result []Pullrequest
-	for _, i := range repos {
-		result = append(result, getRepoPullRequests(state.Organization, i, status)...)
+	sem := make(chan empty, len(repos))
+	for i, xi := range repos {
+		go func(i int, xi string) {
+			repoList := <-getRepoPullRequestsFuture(state.Organization, xi, status)
+			result = append(result, repoList...)
+			sem <- empty{}
+		}(i, xi)
+	}
+	for i := 0; i < len(repos); i++ {
+		<-sem
 	}
 	return result
 }
+
 func getTeamPullrequests(status string) []Pullrequest {
 	repos := getTeamRepos()
 	var result []Pullrequest
-	for _, i := range repos {
-		result = append(result, getRepoPullRequests(state.Organization, i, status)...)
+	sem := make(chan empty, len(repos))
+	for i, xi := range repos {
+		go func(i int, xi string) {
+			repoList := <-getRepoPullRequestsFuture(state.Organization, xi, status)
+			result = append(result, repoList...)
+			sem <- empty{}
+		}(i, xi)
+	}
+	for i := 0; i < len(repos); i++ {
+		<-sem
 	}
 	return result
 }
+
 func getPersonalPullrequests(status string) []Pullrequest {
 	repos := getPersonalRepos()
 	var result []Pullrequest
-	for _, i := range repos {
-		result = append(result, getRepoPullRequests(state.Username, i, status)...)
+	sem := make(chan empty, len(repos))
+	for i, xi := range repos {
+		go func(i int, xi string) {
+			repoList := <-getRepoPullRequestsFuture(state.Username, xi, status)
+			result = append(result, repoList...)
+			sem <- empty{}
+		}(i, xi)
+	}
+	for i := 0; i < len(repos); i++ {
+		<-sem
 	}
 	return result
 }
+
 func getRepoPullRequests(owner string, repo string, status string) []Pullrequest {
-	resp, err := getFromGitHub(state.Username, state.Token, fmt.Sprintf("/repos/%v/%v/pulls?status=%v", owner, repo, status))
+	resp, err := getFromGitHub(state.Username, state.Token, fmt.Sprintf("/repos/%v/%v/pulls?state=%v", owner, repo, status))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -84,19 +116,49 @@ func getRepoPullRequests(owner string, repo string, status string) []Pullrequest
 	}
 	return result
 }
+
 func pullrequestsToTable(pullrequests []Pullrequest) [][]string {
 	var result [][]string
 	for _, i := range pullrequests {
 		result = append(result, []string{
-			i.Base.Repo.Name,
-			strconv.Itoa(i.ID),
-			i.Title,
+			stringElipse(i.Base.Repo.Name, 20),
+			stringElipse(i.Title, 20),
 			i.User.Name,
 			i.Assignee.Name,
-			i.Head.Branch,
-			i.Base.Branch,
+			stringElipse(i.Head.Branch, 15),
+			stringElipse(i.Base.Branch, 15),
 			i.State,
 			i.CreatedAt})
 	}
 	return result
+}
+
+func getRepoPullRequestsFuture(owner string, repo string, status string) chan []Pullrequest {
+	future := make(chan []Pullrequest)
+	go func() { future <- getRepoPullRequests(owner, repo, status) }()
+	return future
+}
+
+func stringElipse(word string, maxLength int) string {
+	result := word[:Min(maxLength, len(word))]
+	if len(result) == maxLength {
+		result = result + "..."
+	}
+	return result
+}
+
+//Min for ints
+func Min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+//Max for ints
+func Max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
 }
