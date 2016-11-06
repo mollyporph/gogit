@@ -13,7 +13,7 @@ type empty struct{}
 //Pullrequest json struct
 type Pullrequest struct {
 	ID        int       `json:"id"`
-	Title     string    `json:"title"`
+	Name      string    `json:"title"`
 	URL       string    `json:"url"`
 	State     string    `json:"state"`
 	CreatedAt time.Time `json:"created_at"` //unmarshaller produces error with empty or nil time.Times
@@ -44,15 +44,8 @@ func PrintPullRequests(status string, orderby string) {
 }
 
 func getPullrequests(status string, orderby string) []Pullrequest {
-	prCreatedAt := func(p1, p2 *Pullrequest) bool {
-		return p1.CreatedAt.Before(p2.CreatedAt)
-	}
-	prState := func(p1, p2 *Pullrequest) bool {
-		return p1.State < p2.State
-	}
-	prRepo := func(p1, p2 *Pullrequest) bool {
-		return p1.Base.Repo.Name < p2.Base.Repo.Name
-	}
+
+	s := GetSortFuncs()
 	var result []Pullrequest
 	switch state.Context {
 	case "org":
@@ -62,15 +55,10 @@ func getPullrequests(status string, orderby string) []Pullrequest {
 	case "personal":
 		result = getPersonalPullrequests(status)
 	}
-	switch orderby {
-	case "created":
-		By(prCreatedAt).Sort(result)
-	case "state":
-		By(prState).Sort(result)
-	case "repo":
-		By(prRepo).Sort(result)
-	default:
+	if orderby != "" && stringInSlice(orderby, []string{"repo", "name", "requester", "assignee", "from", "to", "state", "created"}) {
+		By(s[orderby]).Sort(result)
 	}
+
 	return result
 }
 
@@ -143,7 +131,7 @@ func pullrequestsToTable(pullrequests []Pullrequest) [][]string {
 	for _, i := range pullrequests {
 		result = append(result, []string{
 			stringElipse(i.Base.Repo.Name, 20),
-			stringElipse(i.Title, 20),
+			stringElipse(i.Name, 20),
 			i.User.Name,
 			i.Assignee.Name,
 			stringElipse(i.Head.Branch, 15),
@@ -217,4 +205,34 @@ func (by By) SortDesc(pullrequests []Pullrequest) {
 		by:           by,
 	}
 	sort.Sort(sort.Reverse(ps))
+}
+
+//GetSortFuncs returns the less functions required by Sort By
+func GetSortFuncs() map[string]func(*Pullrequest, *Pullrequest) bool {
+	s := make(map[string]func(*Pullrequest, *Pullrequest) bool)
+	s["repo"] = func(p1, p2 *Pullrequest) bool {
+		return p1.Base.Repo.Name < p2.Base.Repo.Name
+	}
+	s["name"] = func(p1, p2 *Pullrequest) bool {
+		return p1.Name < p2.Name
+	}
+	s["requester"] = func(p1, p2 *Pullrequest) bool {
+		return p1.User.Name < p2.User.Name
+	}
+	s["assignee"] = func(p1, p2 *Pullrequest) bool {
+		return p1.Assignee.Name < p2.Assignee.Name
+	}
+	s["from"] = func(p1, p2 *Pullrequest) bool {
+		return p1.Head.Branch < p2.Head.Branch
+	}
+	s["to"] = func(p1, p2 *Pullrequest) bool {
+		return p1.Base.Branch < p2.Base.Branch
+	}
+	s["state"] = func(p1, p2 *Pullrequest) bool {
+		return p1.State < p2.State
+	}
+	s["created"] = func(p1, p2 *Pullrequest) bool {
+		return p1.CreatedAt.Before(p2.CreatedAt)
+	}
+	return s
 }
