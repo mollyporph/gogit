@@ -12,14 +12,14 @@ type RepoID struct {
 }
 
 func getOrgRepos() []string {
-	repos, err := getFromGitHub(state.Username, state.Token, fmt.Sprintf("/orgs/%v/repos", state.Organization))
+	repos, err := getFromGitHub(state.Username, state.Token, fmt.Sprintf("/orgs/%v/repos?page_size=100", state.Organization))
 	if err != nil {
 		log.Fatal(err)
 	}
 	return parseRepos(repos)
 }
 func getTeamRepos() []string {
-	repos, err := getFromGitHub(state.Username, state.Token, fmt.Sprintf("/teams/%v/repos", state.TeamID))
+	repos, err := getFromGitHub(state.Username, state.Token, fmt.Sprintf("/teams/%v/repos?page_size=100", state.TeamID))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func getTeamRepos() []string {
 }
 
 func getPersonalRepos() []string {
-	repos, err := getFromGitHub(state.Username, state.Token, "/user/repos?affiliation=owner")
+	repos, err := getFromGitHub(state.Username, state.Token, "/user/repos?affiliation=owner&page_size=100")
 	if err != nil {
 		log.Fatal(err)
 	}

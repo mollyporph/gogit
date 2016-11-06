@@ -62,59 +62,38 @@ func getPullrequests(status string, orderby string) []Pullrequest {
 	return result
 }
 
-func getOrgPullrequests(status string) []Pullrequest {
-	repos := getOrgRepos()
-	var result []Pullrequest
-	sem := make(chan empty, len(repos))
-	for i, xi := range repos {
-		go func(i int, xi string) {
-			repoList := <-getRepoPullRequestsFuture(state.Organization, xi, status)
-			result = append(result, repoList...)
-			sem <- empty{}
-		}(i, xi)
-	}
-	for i := 0; i < len(repos); i++ {
-		<-sem
-	}
-	return result
-}
-
 func getTeamPullrequests(status string) []Pullrequest {
 	repos := getTeamRepos()
-	var result []Pullrequest
-	sem := make(chan empty, len(repos))
-	for i, xi := range repos {
-		go func(i int, xi string) {
-			repoList := <-getRepoPullRequestsFuture(state.Organization, xi, status)
-			result = append(result, repoList...)
-			sem <- empty{}
-		}(i, xi)
-	}
-	for i := 0; i < len(repos); i++ {
-		<-sem
-	}
-	return result
+	return getPullrequestsRoutine(repos, state.Organization, status)
 }
-
 func getPersonalPullrequests(status string) []Pullrequest {
 	repos := getPersonalRepos()
+	return getPullrequestsRoutine(repos, state.Username, status)
+}
+func getOrgPullrequests(status string) []Pullrequest {
+	repos := getOrgRepos()
+	return getPullrequestsRoutine(repos, state.Organization, status)
+}
+func getPullrequestsRoutine(repos []string, owner string, status string) []Pullrequest {
 	var result []Pullrequest
-	sem := make(chan empty, len(repos))
+	res := make(chan []Pullrequest)
 	for i, xi := range repos {
 		go func(i int, xi string) {
-			repoList := <-getRepoPullRequestsFuture(state.Username, xi, status)
-			result = append(result, repoList...)
-			sem <- empty{}
+			res <- getRepoPullRequests(owner, xi, status)
 		}(i, xi)
 	}
 	for i := 0; i < len(repos); i++ {
-		<-sem
+		result = append(result, <-res...)
 	}
 	return result
 }
-
+func getRepoPullRequestsFuture(owner string, repo string, status string) chan []Pullrequest {
+	future := make(chan []Pullrequest)
+	go func() { future <- getRepoPullRequests(owner, repo, status) }()
+	return future
+}
 func getRepoPullRequests(owner string, repo string, status string) []Pullrequest {
-	resp, err := getFromGitHub(state.Username, state.Token, fmt.Sprintf("/repos/%v/%v/pulls?state=%v", owner, repo, status))
+	resp, err := getFromGitHub(state.Username, state.Token, fmt.Sprintf("/repos/%v/%v/pulls?state=%v&page_size=100", owner, repo, status))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -140,12 +119,6 @@ func pullrequestsToTable(pullrequests []Pullrequest) [][]string {
 			i.CreatedAt.Format("2006-01-02 15:04")})
 	}
 	return result
-}
-
-func getRepoPullRequestsFuture(owner string, repo string, status string) chan []Pullrequest {
-	future := make(chan []Pullrequest)
-	go func() { future <- getRepoPullRequests(owner, repo, status) }()
-	return future
 }
 
 func stringElipse(word string, maxLength int) string {
