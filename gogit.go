@@ -91,6 +91,28 @@ func main() {
 			},
 		},
 		{
+			Name:    "issues",
+			Aliases: []string{"is"},
+			Usage:   "Lists issues",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "status, s",
+					Value: "open",
+					Usage: "Filters the issues based on `status`. Available options are open,closed,all",
+				},
+				cli.StringFlag{
+					Name:  "orderby, o",
+					Value: "",
+					Usage: "Sorts the issues based on `orderby`. Available options are repo,state,created",
+				},
+			},
+			Action: func(c *cli.Context) error {
+				buildState()
+				PrintIssues(c.String("status"))
+				return nil
+			},
+		},
+		{
 			Name:    "organisations",
 			Aliases: []string{"orgs"},
 			Usage:   "Lists your available orgs",
