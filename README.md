@@ -2,7 +2,7 @@
 
 GoGit is a small github v3 api client specifically built to ease overview for organisations with multiple repos.
 ![prpersonal](https://puu.sh/s8oRm/7991789e8e.png)
-
+![gogithelp](https://puu.sh/s9ove/5b647a82c6.png)
 #Features
 * Using a personal access token instead of requiring username and password for each call
 * Works with two-factor authentication
