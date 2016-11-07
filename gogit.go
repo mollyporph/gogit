@@ -46,19 +46,19 @@ func main() {
 		cli.StringFlag{
 			Name:        "context, c",
 			Value:       "org",
-			Usage:       "Context of the call, org, team or personal",
+			Usage:       "`Context` of the call, org, team or personal",
 			Destination: &state.Context,
 		},
 		cli.StringFlag{
 			Name:        "org, o",
 			Value:       "",
-			Usage:       "The organization you want to query against",
+			Usage:       "The `organization` you want to query against",
 			Destination: &state.Organization,
 		},
 		cli.IntFlag{
 			Name:        "teamid, t",
 			Value:       0,
-			Usage:       "The team you want to query against (you need to supply `--context team` for this to work)",
+			Usage:       "The `teamid` you want to query against (you need to supply --context team for this to work)",
 			Destination: &state.TeamID,
 		},
 		cli.BoolFlag{
