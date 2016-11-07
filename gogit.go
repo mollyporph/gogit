@@ -107,5 +107,3 @@ func main() {
 	preflight(&config)
 	app.Run(os.Args)
 }
-
-//GetGithubPatAndUsername returns the created PAT and the correct username
