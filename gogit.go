@@ -71,7 +71,7 @@ func main() {
 		{
 			Name:    "pullrequest",
 			Aliases: []string{"pr"},
-			Usage:   "add a task to the list",
+			Usage:   "Lists pullrequests",
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "status, s",

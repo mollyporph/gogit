@@ -6,6 +6,14 @@ func PrintIssues() {
 }
 
 func GetIssues() []Issue {
+	switch state.Context {
+	case "org":
+		return getOrgIssues()
+	case "team":
+		return getTeamIssues()
+	case "personal":
+		return getMyIssues()
+	}
 	return nil
 }
 

@@ -45,9 +45,14 @@ func GetGithubPatAndUsername() (string, string) {
 	patPermissions := getPatPermnissions()
 	askForPatConfirmation(patPermissions)
 	fmt.Println("Your password will only be used to create a PAT (over https) and will not be stored anywhere")
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatal(err)
+	}
 	requestBody := TokenRequestBody{
 		Scopes: patPermissions,
-		Note:   "GoGit PAT", //todo: make changeable}
+		Note:   "GoGit PAT " + hostname, //todo: make changeable}
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
