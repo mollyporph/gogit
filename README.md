@@ -16,4 +16,7 @@ GoGit is a small github v3 api client specifically built to ease overview for or
 * Colorize the table (for instance red for pullrequests that has been open for more than x days)
 * Add config fields for default warning threshold for pullrequest open duration
 * Add ability to modify config file after initial setup
+* Add ID to pullrequest table
+* Add detailview for a single pullrequest (i.e gogit pr 12345)
+* Add detailview for a single issue (i.e gogit is 12345)
 
